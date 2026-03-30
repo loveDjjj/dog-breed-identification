@@ -20,7 +20,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-def seed_everything(seed: int) -> None:
+def seed_everything(seed: int, deterministic: bool = True) -> None:
     """固定所有常见随机源，尽量保证可复现。"""
 
     random.seed(seed)
@@ -28,8 +28,8 @@ def seed_everything(seed: int) -> None:
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-    # 这里关闭 cudnn 的随机优化，换取更稳定的可复现性。
-    torch.backends.cudnn.deterministic = True
+    # 默认优先保证可复现；如果后续显式开启 benchmark，会在训练入口覆盖。
+    torch.backends.cudnn.deterministic = bool(deterministic)
     torch.backends.cudnn.benchmark = False
 
 

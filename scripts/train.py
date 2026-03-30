@@ -116,7 +116,11 @@ def main() -> None:
     if args.device is not None:
         config["training"]["device"] = args.device
 
-    seed_everything(int(config["experiment"]["seed"]))
+    deterministic = bool(config["training"].get("deterministic", True))
+    seed_everything(
+        int(config["experiment"]["seed"]),
+        deterministic=deterministic,
+    )
 
     metadata = prepare_metadata(
         config=config,
@@ -132,8 +136,28 @@ def main() -> None:
     save_config_snapshot(config, paths["log_dir"] / "resolved_config.yaml")
 
     device = select_device(config["training"]["device"])
+    matmul_precision = str(config["training"].get("matmul_precision", "high")).lower()
+    if hasattr(torch, "set_float32_matmul_precision"):
+        if matmul_precision not in {"highest", "high", "medium"}:
+            raise ValueError(
+                "training.matmul_precision 必须是 highest / high / medium 之一。"
+            )
+        torch.set_float32_matmul_precision(matmul_precision)
+
+    cudnn_benchmark = bool(config["training"].get("cudnn_benchmark", False))
+    if device.type == "cuda":
+        torch.backends.cudnn.benchmark = cudnn_benchmark
+        if cudnn_benchmark:
+            torch.backends.cudnn.deterministic = False
+
     logger.info("实验名称: %s", config["experiment"]["name"])
     logger.info("训练设备: %s", device)
+    logger.info(
+        "deterministic=%s | cudnn_benchmark=%s | matmul_precision=%s",
+        torch.backends.cudnn.deterministic,
+        torch.backends.cudnn.benchmark,
+        matmul_precision,
+    )
     logger.info("数据集摘要: %s", json.dumps(metadata["summary"], ensure_ascii=False))
 
     model, weights = build_model(

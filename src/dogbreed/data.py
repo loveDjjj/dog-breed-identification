@@ -69,14 +69,22 @@ class DogBreedTestDataset(Dataset):
         return image, str(row["id"])
 
 
-def _build_loader_kwargs(num_workers: int, pin_memory: bool, persistent_workers: bool) -> dict[str, Any]:
+def _build_loader_kwargs(
+    num_workers: int,
+    pin_memory: bool,
+    persistent_workers: bool,
+    prefetch_factor: int | None,
+) -> dict[str, Any]:
     """统一整理 DataLoader 的线程参数。"""
 
-    return {
+    loader_kwargs = {
         "num_workers": int(num_workers),
         "pin_memory": bool(pin_memory),
         "persistent_workers": bool(persistent_workers and int(num_workers) > 0),
     }
+    if int(num_workers) > 0 and prefetch_factor is not None:
+        loader_kwargs["prefetch_factor"] = int(prefetch_factor)
+    return loader_kwargs
 
 
 def build_train_val_dataloaders(
@@ -109,6 +117,7 @@ def build_train_val_dataloaders(
         num_workers=int(data_config["num_workers"]),
         pin_memory=bool(data_config["pin_memory"]),
         persistent_workers=bool(data_config["persistent_workers"]),
+        prefetch_factor=data_config.get("prefetch_factor"),
     )
 
     train_loader = DataLoader(
@@ -119,7 +128,9 @@ def build_train_val_dataloaders(
     )
     val_loader = DataLoader(
         val_dataset,
-        batch_size=int(config["training"]["batch_size"]),
+        batch_size=int(
+            config["training"].get("val_batch_size") or config["training"]["batch_size"]
+        ),
         shuffle=False,
         **loader_kwargs,
     )
@@ -146,6 +157,10 @@ def build_test_dataloader(
         num_workers=int(inference_config.get("num_workers", data_config["num_workers"])),
         pin_memory=bool(data_config["pin_memory"]),
         persistent_workers=bool(data_config["persistent_workers"]),
+        prefetch_factor=inference_config.get(
+            "prefetch_factor",
+            data_config.get("prefetch_factor"),
+        ),
     )
 
     test_loader = DataLoader(
