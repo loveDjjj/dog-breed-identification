@@ -1,0 +1,25 @@
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# 虚拟环境与编辑器文件
+.venv/
+venv/
+.idea/
+.vscode/
+
+# Kaggle 原始数据集，不纳入最终提交版本
+train/
+test/
+labels.csv
+sample_submission.csv
+
+# 训练权重与中间模型文件，不纳入最终提交版本
+*.pth
+*.pt
+*.ckpt
+
+# 运行时缓存
+.pytest_cache/
+.mypy_cache/
+*.log
