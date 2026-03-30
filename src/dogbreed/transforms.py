@@ -18,6 +18,48 @@ def _normalize_size(size_value: Any, default_value: int) -> int:
     return int(size_value)
 
 
+def resolve_interpolation_mode(interpolation_value: Any) -> InterpolationMode:
+    """将字符串或枚举统一转换为 torchvision 使用的插值模式枚举。"""
+
+    if isinstance(interpolation_value, InterpolationMode):
+        return interpolation_value
+
+    if isinstance(interpolation_value, str):
+        normalized = interpolation_value.strip().upper()
+        if normalized in InterpolationMode.__members__:
+            return InterpolationMode[normalized]
+
+        # 兼容保存为枚举值字符串的情况，例如 "bilinear"。
+        for mode in InterpolationMode:
+            if str(mode.value).upper() == normalized:
+                return mode
+
+    raise ValueError(f"无法识别的插值模式: {interpolation_value}")
+
+
+def serialize_preprocess_config(preprocess_config: dict[str, Any]) -> dict[str, Any]:
+    """将预处理配置转换为纯 Python 基本类型，方便安全保存到 checkpoint。"""
+
+    serialized = dict(preprocess_config)
+    serialized["interpolation"] = resolve_interpolation_mode(
+        preprocess_config["interpolation"]
+    ).name
+    return serialized
+
+
+def deserialize_preprocess_config(preprocess_config: dict[str, Any] | None) -> dict[str, Any] | None:
+    """将从 checkpoint 读出的预处理配置恢复为运行时可用格式。"""
+
+    if preprocess_config is None:
+        return None
+
+    restored = dict(preprocess_config)
+    restored["interpolation"] = resolve_interpolation_mode(
+        preprocess_config["interpolation"]
+    )
+    return restored
+
+
 def get_preprocess_config(weights: Any, image_size_override: int | None = None) -> dict[str, Any]:
     """从 torchvision 预训练权重中提取标准预处理参数。"""
 
@@ -60,7 +102,7 @@ def build_train_transform(augmentation_config: dict[str, Any], preprocess_config
 
     train_config = augmentation_config["train"]
     image_size = preprocess_config["crop_size"]
-    interpolation = preprocess_config["interpolation"]
+    interpolation = resolve_interpolation_mode(preprocess_config["interpolation"])
 
     transform_steps: list[Any] = [
         transforms.RandomResizedCrop(
@@ -153,11 +195,13 @@ def build_train_transform(augmentation_config: dict[str, Any], preprocess_config
 def build_eval_transform(preprocess_config: dict[str, Any]) -> transforms.Compose:
     """构建验证集和测试集的确定性预处理流水线。"""
 
+    interpolation = resolve_interpolation_mode(preprocess_config["interpolation"])
+
     return transforms.Compose(
         [
             transforms.Resize(
                 size=preprocess_config["resize_size"],
-                interpolation=preprocess_config["interpolation"],
+                interpolation=interpolation,
             ),
             transforms.CenterCrop(preprocess_config["crop_size"]),
             transforms.ToTensor(),

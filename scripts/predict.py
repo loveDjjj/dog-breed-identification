@@ -18,7 +18,11 @@ from src.dogbreed.data import build_test_dataloader
 from src.dogbreed.engine import predict_probabilities
 from src.dogbreed.metadata import load_metadata
 from src.dogbreed.models import build_model
-from src.dogbreed.transforms import build_eval_transform, get_preprocess_config
+from src.dogbreed.transforms import (
+    build_eval_transform,
+    deserialize_preprocess_config,
+    get_preprocess_config,
+)
 from src.dogbreed.utils import (
     build_project_paths,
     ensure_dir,
@@ -59,6 +63,18 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def load_checkpoint(checkpoint_path: Path) -> dict:
+    """兼容 PyTorch 2.6+ 的 checkpoint 加载行为。"""
+
+    try:
+        # 本项目的 checkpoint 由本地训练脚本生成，属于可信文件，显式关闭
+        # weights_only 模式以兼容旧 checkpoint 中保存的枚举对象。
+        return torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    except TypeError:
+        # 兼容较旧 PyTorch 版本，其 torch.load 可能还不支持该参数。
+        return torch.load(checkpoint_path, map_location="cpu")
+
+
 def main() -> None:
     """执行测试集推理与 CSV 生成。"""
 
@@ -86,10 +102,12 @@ def main() -> None:
     logger.info("推理设备: %s", device)
     logger.info("加载 checkpoint: %s", checkpoint_path)
 
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    checkpoint = load_checkpoint(checkpoint_path)
     model_name = checkpoint.get("model_name", config["model"]["name"])
     class_names = checkpoint.get("class_names", metadata["class_names"])
-    preprocess_config = checkpoint.get("preprocess_config")
+    preprocess_config = deserialize_preprocess_config(
+        checkpoint.get("preprocess_config")
+    )
 
     model, weights = build_model(
         model_name=model_name,

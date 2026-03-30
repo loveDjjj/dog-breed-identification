@@ -26,7 +26,12 @@ from src.dogbreed.engine import (
 )
 from src.dogbreed.metadata import prepare_metadata
 from src.dogbreed.models import build_model, freeze_backbone
-from src.dogbreed.transforms import build_eval_transform, build_train_transform, get_preprocess_config
+from src.dogbreed.transforms import (
+    build_eval_transform,
+    build_train_transform,
+    get_preprocess_config,
+    serialize_preprocess_config,
+)
 from src.dogbreed.utils import (
     build_project_paths,
     count_parameters,
@@ -96,7 +101,7 @@ def build_checkpoint(
         "model_name": config["model"]["name"],
         "weights_name": config["model"]["weights"],
         "class_names": metadata["class_names"],
-        "preprocess_config": preprocess_config,
+        "preprocess_config": serialize_preprocess_config(preprocess_config),
         "best_metric": float(best_metric),
         "config": {key: value for key, value in config.items() if key != "_meta"},
     }
